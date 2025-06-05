@@ -101,6 +101,6 @@ GPIO 28      -->   LRCLK (左右声道时钟)
 
 1. 按住 Pico 的 BOOTSEL 按钮
 2. 将 Pico 连接到电脑
-3. 将生成的 `sine_wave_i2s_32b.uf2` 文件拖拽到出现的 RPI-RP2 驱动器
+3. 将生成的 `do_re_me_demo.uf2` 文件拖拽到出现的 RPI-RP2 驱动器
 4. Pico 会自动重启并运行程序
 5. 通过串口可以看到引脚连接信息 

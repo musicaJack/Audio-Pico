@@ -1,3 +1,4 @@
+build/
 # Prerequisites
 *.d
 
@@ -30,3 +31,7 @@
 *.exe
 *.out
 *.app
+
+
+.DS_Store
+Thumbs.db 

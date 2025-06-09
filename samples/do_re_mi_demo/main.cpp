@@ -6,6 +6,7 @@
  * GPIO 26 -> DIN   (数据输入)
  * GPIO 27 -> BCLK  (位时钟)
  * GPIO 28 -> LRCLK (左右声道时钟)
+ * GPIO 22 -> XMT   (PCM5102静音控制，高电平解除静音)
  */
 
 #include <stdio.h>
@@ -16,7 +17,10 @@
 #include "pico/audio_i2s.h"
 #include "hardware/gpio.h"
 
-// 音阶频率定义 (DO RE MI FA SOL LA SI DO)
+// PCM5102 XMT静音控制引脚
+#define PCM5102_XMT_PIN 22
+
+// 音阶频率定义 (DO RE MI FA SOL LA SI)
 static const float note_frequencies[] = {
     261.63f,  // DO (C4)
     293.66f,  // RE (D4)  
@@ -24,12 +28,11 @@ static const float note_frequencies[] = {
     349.23f,  // FA (F4)
     392.00f,  // SOL (G4)
     440.00f,  // LA (A4)
-    493.88f,  // SI (B4)
-    523.25f   // DO (C5)
+    493.88f   // SI (B4)
 };
 
 static const char* note_names[] = {
-    "DO", "RE", "MI", "FA", "SOL", "LA", "SI", "DO"
+    "DO", "RE", "MI", "FA", "SOL", "LA", "SI"
 };
 
 #define NUM_NOTES (sizeof(note_frequencies) / sizeof(note_frequencies[0]))
@@ -74,6 +77,9 @@ static bool is_playing_note = true;       // 当前是否在播放音符（false
 static uint32_t note_sample_count = 0;   // 当前音符已播放的采样数
 static float harmonic_amplitudes[NUM_HARMONICS] = {1.0f, 0.5f, 0.3f, 0.2f, 0.15f, 0.1f}; // 谐波强度
 static bool piano_mode = true;           // true=钢琴音色, false=纯正弦波
+static bool is_muted = false;            // PCM5102静音状态
+static bool auto_play = false;          // 自动播放模式
+static bool note_playing = false;       // 当前是否有音符在播放
 
 // 音频格式配置
 static audio_format_t audio_format = {
@@ -150,34 +156,70 @@ static uint32_t get_time_ms(void) {
     return to_ms_since_boot(get_absolute_time());
 }
 
+// 开始播放指定音符
+static void start_playing_note(uint32_t note_index) {
+    if (note_index < NUM_NOTES) {
+        current_note = note_index;
+        note_playing = true;
+        is_playing_note = false;  // 设为false，让audio_callback重新初始化
+        last_note_change = get_time_ms();
+        note_sample_count = 0;  // 重置音符采样计数
+        printf("播放音符 %d: %s (%.2f Hz)\n", 
+               note_index + 1,
+               note_names[current_note], 
+               note_frequencies[current_note]);
+    }
+}
+
 // 音频回调函数
 static void audio_callback(void) {
     static uint32_t phase = 0;
     static uint32_t step = 0;
     
-    // 检查是否需要切换状态（音符 <-> 暂停）
-    uint32_t current_time = get_time_ms();
-    uint32_t elapsed_time = current_time - last_note_change;
-    
-    if (is_playing_note) {
-        // 当前在播放音符，检查是否需要进入暂停
-        if (elapsed_time >= note_duration_ms) {
-            is_playing_note = false;
-            last_note_change = current_time;
-            printf("  -> 暂停 %dms\n", pause_duration_ms);
+    // 自动播放模式的逻辑
+    if (auto_play) {
+        // 检查是否需要切换状态（音符 <-> 暂停）
+        uint32_t current_time = get_time_ms();
+        uint32_t elapsed_time = current_time - last_note_change;
+        
+        if (is_playing_note) {
+            // 当前在播放音符，检查是否需要进入暂停
+            if (elapsed_time >= note_duration_ms) {
+                is_playing_note = false;
+                last_note_change = current_time;
+                printf("  -> 暂停 %dms\n", pause_duration_ms);
+            }
+        } else {
+            // 当前在暂停，检查是否需要切换到下一个音符
+            if (elapsed_time >= pause_duration_ms) {
+                current_note = (current_note + 1) % NUM_NOTES;
+                is_playing_note = true;
+                last_note_change = current_time;
+                note_sample_count = 0;  // 重置音符采样计数
+                step = frequency_to_step(note_frequencies[current_note]);
+                
+                printf("播放音符: %s (%.2f Hz)", 
+                       note_names[current_note], 
+                       note_frequencies[current_note]);
+            }
         }
     } else {
-        // 当前在暂停，检查是否需要切换到下一个音符
-        if (elapsed_time >= pause_duration_ms) {
-            current_note = (current_note + 1) % NUM_NOTES;
-            is_playing_note = true;
-            last_note_change = current_time;
-            note_sample_count = 0;  // 重置音符采样计数
-            step = frequency_to_step(note_frequencies[current_note]);
+        // 手动播放模式
+        if (note_playing) {
+            if (!is_playing_note) {
+                // 开始播放音符，重新计算频率步进值
+                is_playing_note = true;
+                step = frequency_to_step(note_frequencies[current_note]);
+                phase = 0;  // 重置相位，确保从波形开始播放
+            }
             
-            printf("播放音符: %s (%.2f Hz)", 
-                   note_names[current_note], 
-                   note_frequencies[current_note]);
+            // 检查音符播放时间（手动模式下播放更长时间）
+            uint32_t current_time = get_time_ms();
+            uint32_t elapsed_time = current_time - last_note_change;
+            if (elapsed_time >= 1000) {  // 播放1秒后停止
+                note_playing = false;
+                is_playing_note = false;
+            }
         }
     }
     
@@ -230,6 +272,7 @@ int main() {
     printf("  GPIO 26 -> DIN   (数据输入)\n");
     printf("  GPIO 27 -> BCLK  (位时钟)\n");
     printf("  GPIO 28 -> LRCLK (左右声道时钟)\n");
+    printf("  GPIO 22 -> XMT   (PCM5102静音控制)\n");
     printf("========================\n");
     
     // 初始化LED
@@ -237,6 +280,12 @@ int main() {
     gpio_init(LED_PIN);
     gpio_set_dir(LED_PIN, GPIO_OUT);
     gpio_put(LED_PIN, 1);
+    
+    // 初始化PCM5102静音控制引脚（XMT）
+    gpio_init(PCM5102_XMT_PIN);
+    gpio_set_dir(PCM5102_XMT_PIN, GPIO_OUT);
+    gpio_put(PCM5102_XMT_PIN, 1);  // 默认拉高，解除静音
+    printf("✓ PCM5102 XMT引脚初始化完成 (GPIO%d，默认解除静音)\n", PCM5102_XMT_PIN);
     
     // 生成正弦波查找表
     for (int i = 0; i < SINE_WAVE_TABLE_LEN; i++) {
@@ -270,15 +319,17 @@ int main() {
     // 启用I2S输出
     audio_i2s_set_enabled(true);
     
-    // 初始化第一个音符
+    // 初始化状态（默认不自动播放）
     last_note_change = get_time_ms();
-    printf("开始播放音符: %s (%.2f Hz)\n", note_names[0], note_frequencies[0]);
+    printf("✓ 音频系统就绪，等待用户输入\n");
     
     printf("\n控制键：\n");
+    printf("  1-7 : 播放音符 (1=DO, 2=RE, 3=MI, 4=FA, 5=SOL, 6=LA, 7=SI)\n");
     printf("  +/- : 音量控制\n");
-    printf("  n   : 下一个音符\n");
-    printf("  s   : 切换速度\n");
+    printf("  a   : 切换自动播放模式\n");
+    printf("  s   : 切换速度 (仅自动播放模式)\n");
     printf("  t   : 切换音色 (钢琴/纯音)\n");
+    printf("  m   : 切换静音 (PCM5102 XMT控制)\n");
     printf("  q   : 退出\n\n");
     
     // 主循环
@@ -290,6 +341,22 @@ int main() {
         int c = getchar_timeout_us(0);
         if (c >= 0) {
             switch (c) {
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                case '5':
+                case '6':
+                case '7':
+                    if (!auto_play) {
+                        uint32_t note_idx = c - '1';
+                        printf("按键 '%c' -> 音符索引 %d\n", c, note_idx);
+                        start_playing_note(note_idx);  // '1' = 0 (DO), '2' = 1 (RE), etc.
+                    } else {
+                        printf("当前处于自动播放模式，请先按 'a' 关闭自动播放\n");
+                    }
+                    break;
+                    
                 case '-':
                     if (volume > 10) {
                         volume -= 10;
@@ -305,13 +372,21 @@ int main() {
                     }
                     break;
                     
-                case 'n':
-                    current_note = (current_note + 1) % NUM_NOTES;
-                    last_note_change = get_time_ms();
-                    note_sample_count = 0;  // 重置采样计数
-                    printf("切换到音符: %s (%.2f Hz)\n", 
-                           note_names[current_note], 
-                           note_frequencies[current_note]);
+                case 'a':
+                case 'A':
+                    auto_play = !auto_play;
+                    if (auto_play) {
+                        current_note = 0;
+                        is_playing_note = true;
+                        last_note_change = get_time_ms();
+                        note_sample_count = 0;
+                        printf("自动播放模式: 开启\n");
+                        printf("开始播放音符: %s (%.2f Hz)\n", note_names[0], note_frequencies[0]);
+                    } else {
+                        note_playing = false;
+                        is_playing_note = false;
+                        printf("自动播放模式: 关闭\n");
+                    }
                     break;
                     
                 case 't':
@@ -320,7 +395,8 @@ int main() {
                     break;
                     
                 case 's':
-                    {
+                case 'S':
+                    if (auto_play) {
                         static int speed_mode = 1;
                         speed_mode = (speed_mode + 1) % 3;
                         switch(speed_mode) {
@@ -343,7 +419,18 @@ int main() {
                                        note_duration_ms, pause_duration_ms); 
                                 break;
                         }
+                    } else {
+                        printf("速度切换仅在自动播放模式下有效，请先按 'a' 开启自动播放\n");
                     }
+                    break;
+                    
+                case 'm':
+                case 'M':
+                    is_muted = !is_muted;
+                    gpio_put(PCM5102_XMT_PIN, is_muted ? 0 : 1);
+                    printf("PCM5102 静音: %s (XMT引脚: %s)\n", 
+                           is_muted ? "开启" : "关闭",
+                           is_muted ? "低电平" : "高电平");
                     break;
                     
                 case 'q':

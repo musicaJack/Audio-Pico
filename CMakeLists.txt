@@ -3,6 +3,11 @@ cmake_minimum_required(VERSION 3.13)
 # Export compile commands for IDE support
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Set default generator to Ninja if not specified
+if(NOT CMAKE_GENERATOR)
+    set(CMAKE_GENERATOR "Ninja")
+endif()
+
 # Import Pico SDK - prefer local copied files
 if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/pico_sdk_import.cmake)
     include(${CMAKE_CURRENT_LIST_DIR}/pico_sdk_import.cmake)

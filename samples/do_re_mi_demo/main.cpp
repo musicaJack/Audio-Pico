@@ -58,10 +58,10 @@ static const char* note_names[] = {
 // 🎹 钢琴音色参数
 // ============================================================================
 #define NUM_HARMONICS 6              // 谐波数量
-#define ATTACK_SAMPLES (44100 * 20 / 1000)   // 20ms 攻击时间
-#define DECAY_SAMPLES (44100 * 100 / 1000)   // 100ms 衰减时间
-#define SUSTAIN_LEVEL 0.4f           // 持续音量 (40%)
-#define RELEASE_SAMPLES (44100 * 200 / 1000) // 200ms 释放时间
+#define ATTACK_SAMPLES (44100 * 5 / 1000)    // 5ms 攻击时间（快速响应）
+#define DECAY_SAMPLES (44100 * 20 / 1000)    // 20ms 衰减时间（快速衰减）
+#define SUSTAIN_LEVEL 0.6f           // 持续音量 (60%，稍高保持清晰度)
+#define RELEASE_SAMPLES (44100 * 30 / 1000)  // 30ms 释放时间（快速结束）
 
 // 全局变量
 static int16_t sine_wave_table[SINE_WAVE_TABLE_LEN];
@@ -75,11 +75,15 @@ static bool is_playing_note = true;       // 当前是否在播放音符（false
 
 // 钢琴音色相关变量
 static uint32_t note_sample_count = 0;   // 当前音符已播放的采样数
-static float harmonic_amplitudes[NUM_HARMONICS] = {1.0f, 0.5f, 0.3f, 0.2f, 0.15f, 0.1f}; // 谐波强度
+static float harmonic_amplitudes[NUM_HARMONICS] = {1.0f, 0.4f, 0.2f, 0.1f, 0.05f, 0.03f}; // 谐波强度（更干脆）
 static bool piano_mode = true;           // true=钢琴音色, false=纯正弦波
 static bool is_muted = false;            // PCM5102静音状态
 static bool auto_play = false;          // 自动播放模式
 static bool note_playing = false;       // 当前是否有音符在播放
+
+// 音频生成相关变量
+static uint32_t audio_phase = 0;        // 音频相位
+static uint32_t audio_step = 0;         // 音频步进值
 
 // 音频格式配置
 static audio_format_t audio_format = {
@@ -106,19 +110,30 @@ static uint32_t frequency_to_step(float frequency) {
     return (uint32_t)((frequency * SINE_WAVE_TABLE_LEN * 65536.0f) / 44100.0f);
 }
 
-// 计算包络值 (ADSR)
-static float calculate_envelope(uint32_t sample_position) {
+// 计算包络值 (ADSR) - 针对200ms短音符优化
+static float calculate_envelope(uint32_t sample_position, uint32_t elapsed_time_ms) {
+    const uint32_t total_duration_samples = 44100 * 200 / 1000;  // 200ms总时长
+    const uint32_t release_start_samples = total_duration_samples - RELEASE_SAMPLES;
+    
     if (sample_position < ATTACK_SAMPLES) {
-        // Attack: 线性上升到峰值
+        // Attack: 快速上升到峰值
         return (float)sample_position / ATTACK_SAMPLES;
     } else if (sample_position < ATTACK_SAMPLES + DECAY_SAMPLES) {
-        // Decay: 从峰值衰减到持续音量
+        // Decay: 快速衰减到持续音量
         uint32_t decay_pos = sample_position - ATTACK_SAMPLES;
         float decay_ratio = (float)decay_pos / DECAY_SAMPLES;
         return 1.0f - decay_ratio * (1.0f - SUSTAIN_LEVEL);
-    } else {
+    } else if (sample_position < release_start_samples) {
         // Sustain: 保持持续音量
         return SUSTAIN_LEVEL;
+    } else {
+        // Release: 快速释放到静音
+        uint32_t release_pos = sample_position - release_start_samples;
+        if (release_pos >= RELEASE_SAMPLES) {
+            return 0.0f;  // 完全静音
+        }
+        float release_ratio = (float)release_pos / RELEASE_SAMPLES;
+        return SUSTAIN_LEVEL * (1.0f - release_ratio);
     }
 }
 
@@ -161,20 +176,24 @@ static void start_playing_note(uint32_t note_index) {
     if (note_index < NUM_NOTES) {
         current_note = note_index;
         note_playing = true;
-        is_playing_note = false;  // 设为false，让audio_callback重新初始化
+        is_playing_note = true;
         last_note_change = get_time_ms();
         note_sample_count = 0;  // 重置音符采样计数
-        printf("播放音符 %d: %s (%.2f Hz)\n", 
+        
+        // 立即更新音频参数
+        audio_step = frequency_to_step(note_frequencies[current_note]);
+        audio_phase = 0;  // 重置相位
+        
+        printf("播放音符 %d: %s (%.2f Hz) [step=%d]\n", 
                note_index + 1,
                note_names[current_note], 
-               note_frequencies[current_note]);
+               note_frequencies[current_note],
+               audio_step);
     }
 }
 
 // 音频回调函数
 static void audio_callback(void) {
-    static uint32_t phase = 0;
-    static uint32_t step = 0;
     
     // 自动播放模式的逻辑
     if (auto_play) {
@@ -196,7 +215,8 @@ static void audio_callback(void) {
                 is_playing_note = true;
                 last_note_change = current_time;
                 note_sample_count = 0;  // 重置音符采样计数
-                step = frequency_to_step(note_frequencies[current_note]);
+                audio_step = frequency_to_step(note_frequencies[current_note]);
+                audio_phase = 0;  // 重置相位
                 
                 printf("播放音符: %s (%.2f Hz)", 
                        note_names[current_note], 
@@ -206,17 +226,10 @@ static void audio_callback(void) {
     } else {
         // 手动播放模式
         if (note_playing) {
-            if (!is_playing_note) {
-                // 开始播放音符，重新计算频率步进值
-                is_playing_note = true;
-                step = frequency_to_step(note_frequencies[current_note]);
-                phase = 0;  // 重置相位，确保从波形开始播放
-            }
-            
             // 检查音符播放时间（手动模式下播放更长时间）
             uint32_t current_time = get_time_ms();
             uint32_t elapsed_time = current_time - last_note_change;
-            if (elapsed_time >= 1000) {  // 播放1秒后停止
+            if (elapsed_time >= 200) {  // 播放200ms后停止
                 note_playing = false;
                 is_playing_note = false;
             }
@@ -238,17 +251,19 @@ static void audio_callback(void) {
         if (is_playing_note) {
             if (piano_mode) {
                 // 钢琴音色模式
-                float envelope = calculate_envelope(note_sample_count);
-                sample = generate_piano_sample(phase, envelope);
+                uint32_t current_time = get_time_ms();
+                uint32_t elapsed_time = current_time - last_note_change;
+                float envelope = calculate_envelope(note_sample_count, elapsed_time);
+                sample = generate_piano_sample(audio_phase, envelope);
             } else {
                 // 纯正弦波模式
-                sample = (volume * sine_wave_table[phase >> 16]) / 256;
+                sample = (volume * sine_wave_table[audio_phase >> 16]) / 256;
             }
             
             // 更新相位
-            phase += step;
-            if (phase >= (SINE_WAVE_TABLE_LEN << 16)) {
-                phase -= (SINE_WAVE_TABLE_LEN << 16);
+            audio_phase += audio_step;
+            if (audio_phase >= (SINE_WAVE_TABLE_LEN << 16)) {
+                audio_phase -= (SINE_WAVE_TABLE_LEN << 16);
             }
             
             note_sample_count++;

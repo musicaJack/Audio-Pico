@@ -1,7 +1,7 @@
 #pragma once
 
-#include "WaveGenerator.h"
-#include "Notes.h"
+#include "WaveGenerator.hpp"
+#include "Notes.hpp"
 #include <vector>
 #include <memory>
 #include <cstdint>

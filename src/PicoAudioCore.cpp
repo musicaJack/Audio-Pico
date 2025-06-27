@@ -1,4 +1,4 @@
-#include "PicoAudioCore.h"
+#include "PicoAudioCore.hpp"
 #include "hardware/gpio.h"
 
 namespace Audio {

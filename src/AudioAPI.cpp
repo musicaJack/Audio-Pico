@@ -1,4 +1,4 @@
-#include "AudioAPI.h"
+#include "AudioAPI.hpp"
 #include <algorithm>
 
 namespace Audio {
@@ -279,102 +279,56 @@ std::string AudioAPI::waveTypeToString(WaveType wave_type) const {
     }
 }
 
+// ========== WAV功能实现 (暂时禁用 - 缺少pico_fatfs) ==========
+
+/*
 bool AudioAPI::initializeSD(const SDCardConfig& sd_config) {
-    if (!checkInitialized()) return false;
-    
-    if (!wav_player_) {
-        wav_player_ = std::make_unique<WAVPlayer>(sd_config);
-    }
-    
-    if (wav_player_->initializeSD()) {
-        sd_initialized_ = true;
-        notifyEvent(AudioEvent::NOTE_CHANGED, "SD卡初始化成功");
-        return true;
-    } else {
-        notifyEvent(AudioEvent::ERROR_OCCURRED, "SD卡初始化失败");
-        return false;
-    }
+    // WAV功能暂时禁用
+    notifyEvent(AudioEvent::ERROR_OCCURRED, "WAV功能暂时禁用 - 缺少pico_fatfs依赖");
+    return false;
 }
 
 bool AudioAPI::playWAV(const std::string& filename) {
-    if (!checkInitialized() || !sd_initialized_) {
-        notifyEvent(AudioEvent::ERROR_OCCURRED, "SD卡未初始化");
-        return false;
-    }
-    
-    // 停止当前播放
-    stop();
-    
-    if (!wav_player_->loadWAV(filename)) {
-        return false;
-    }
-    
-    // 设置音频回调为WAV播放器
-    audio_core_->setAudioCallback([this](int16_t* samples, size_t count) {
-        wav_player_->generateSamples(samples, count);
-    });
-    
-    if (!audio_core_->start()) {
-        notifyEvent(AudioEvent::ERROR_OCCURRED, "音频输出启动失败");
-        return false;
-    }
-    
-    if (wav_player_->play()) {
-        notifyEvent(AudioEvent::PLAYBACK_STARTED, "开始播放WAV文件: " + filename);
-        return true;
-    }
-    
+    notifyEvent(AudioEvent::ERROR_OCCURRED, "WAV功能暂时禁用 - 缺少pico_fatfs依赖");
     return false;
 }
 
 bool AudioAPI::switchToWAV(const std::string& filename) {
-    stopWAV();
-    return playWAV(filename);
+    return false;
 }
 
 bool AudioAPI::isPlayingWAV() const {
-    return wav_player_ && wav_player_->getState() == WAVPlaybackState::PLAYING;
+    return false;
 }
 
 float AudioAPI::getWAVPosition() const {
-    return wav_player_ ? wav_player_->getCurrentPosition() : 0.0f;
+    return 0.0f;
 }
 
 float AudioAPI::getWAVDuration() const {
-    return wav_player_ ? wav_player_->getDuration() : 0.0f;
+    return 0.0f;
 }
 
 bool AudioAPI::seekWAV(float position_seconds) {
-    return wav_player_ ? wav_player_->seekTo(position_seconds) : false;
+    return false;
 }
 
 void AudioAPI::pauseWAV() {
-    if (wav_player_) {
-        wav_player_->pause();
-    }
 }
 
 void AudioAPI::stopWAV() {
-    if (wav_player_) {
-        wav_player_->stop();
-    }
-    if (audio_core_) {
-        audio_core_->stop();
-    }
 }
 
 const WAVHeader* AudioAPI::getWAVInfo() const {
-    return wav_player_ && wav_player_->hasFileLoaded() ? &wav_player_->getWAVInfo() : nullptr;
+    return nullptr;
 }
 
 void AudioAPI::setWAVEventCallback(WAVEventCallback callback) {
-    if (wav_player_) {
-        wav_player_->setEventCallback(callback);
-    }
 }
 
 std::vector<std::string> AudioAPI::getSupportedWAVFormats() {
-    return WAVPlayer::getSupportedFormats();
+    return {};
 }
+*/
 
 } // namespace Audio 

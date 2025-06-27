@@ -1,10 +1,11 @@
 #pragma once
 
-#include "AudioCore.h"
-#include "MusicSequencer.h"
-#include "PicoAudioCore.h"
-#include "WAVPlayer.h"
-#include "Notes.h"
+#include "AudioCore.hpp"
+#include "MusicSequencer.hpp"
+#include "PicoAudioCore.hpp"
+#include "Notes.hpp"
+// WAV功能暂时禁用 - 缺少pico_fatfs依赖
+// #include "WAVPlayer.h"
 #include <memory>
 #include <string>
 #include <map>
@@ -194,89 +195,30 @@ public:
      */
     bool playNoteByName(const std::string& note_name, uint32_t duration = 500);
 
-    // ========== WAV文件播放功能 ==========
-
-    /**
-     * @brief 初始化SD卡
-     * @param sd_config SD卡配置
-     * @return 是否初始化成功
-     */
+    // ========== WAV文件播放功能 (暂时禁用 - 缺少pico_fatfs) ==========
+    
+    /*
     bool initializeSD(const SDCardConfig& sd_config = SDCardConfig{});
-
-    /**
-     * @brief 播放WAV文件
-     * @param filename WAV文件路径（如 "/test.wav"）
-     * @return 是否开始播放成功
-     */
     bool playWAV(const std::string& filename);
-
-    /**
-     * @brief 停止当前WAV播放并播放新的WAV文件
-     * @param filename WAV文件路径
-     * @return 是否开始播放成功
-     */
     bool switchToWAV(const std::string& filename);
-
-    /**
-     * @brief 检查WAV播放器是否正在播放
-     * @return 是否正在播放WAV文件
-     */
     bool isPlayingWAV() const;
-
-    /**
-     * @brief 获取当前WAV播放位置
-     * @return 播放位置（秒）
-     */
     float getWAVPosition() const;
-
-    /**
-     * @brief 获取当前WAV总时长
-     * @return 总时长（秒）
-     */
     float getWAVDuration() const;
-
-    /**
-     * @brief 设置WAV播放位置
-     * @param position_seconds 播放位置（秒）
-     * @return 是否设置成功
-     */
     bool seekWAV(float position_seconds);
-
-    /**
-     * @brief 暂停/继续WAV播放
-     */
     void pauseWAV();
-
-    /**
-     * @brief 停止WAV播放
-     */
     void stopWAV();
-
-    /**
-     * @brief 获取WAV文件信息
-     * @return WAV文件头信息，如果没有加载文件则返回nullptr
-     */
     const WAVHeader* getWAVInfo() const;
-
-    /**
-     * @brief 设置WAV事件回调
-     * @param callback WAV事件回调函数
-     */
     void setWAVEventCallback(WAVEventCallback callback);
-
-    /**
-     * @brief 获取支持的WAV格式
-     * @return 支持的格式列表
-     */
     static std::vector<std::string> getSupportedWAVFormats();
+    */
 
 private:
     std::unique_ptr<AudioCore> audio_core_;
     std::unique_ptr<MusicSequencer> sequencer_;
-    std::unique_ptr<WAVPlayer> wav_player_;
+    // std::unique_ptr<WAVPlayer> wav_player_;  // 暂时禁用
     AudioEventCallback event_callback_;
     bool initialized_ = false;
-    bool sd_initialized_ = false;
+    // bool sd_initialized_ = false;  // 暂时禁用
     bool loop_enabled_ = false;
     uint8_t current_volume_ = 50;
     WaveType current_wave_type_ = WaveType::PIANO;

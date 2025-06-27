@@ -71,12 +71,12 @@ if exist "%PICO_EXTRAS_PATH%\external\pico_extras_import.cmake" (
 
 echo.
 echo 步骤 4/8: 验证C++项目文件...
-if not exist "include\AudioAPI.h" (
-    echo ❌ 未找到C++头文件 include\AudioAPI.h
+if not exist "include\AudioAPI.hpp" (
+    echo ❌ 未找到C++头文件 include\AudioAPI.hpp
     goto error
 )
-if not exist "src\main.cpp" (
-    echo ❌ 未找到C++主程序 src\main.cpp
+if not exist "examples\interactive_midi_synth.cpp" (
+    echo ❌ 未找到MIDI合成器程序 examples\interactive_midi_synth.cpp
     goto error
 )
 if not exist "CMakeLists.txt" (
@@ -125,16 +125,10 @@ echo.
 
 :: 检查输出文件
 echo 📁 输出文件检查:
-if exist "audio_demo_cpp.uf2" (
-    echo ✓ 主程序: audio_demo_cpp.uf2
+if exist "interactive_midi_synth.uf2" (
+    echo ✓ MIDI合成器: interactive_midi_synth.uf2
 ) else (
-    echo ⚠️  警告: 主程序UF2文件未生成
-)
-
-if exist "simple_api_demo.uf2" (
-    echo ✓ API演示: simple_api_demo.uf2
-) else (
-    echo ⚠️  警告: API演示UF2文件未生成
+    echo ⚠️  警告: MIDI合成器UF2文件未生成
 )
 
 echo.
@@ -157,18 +151,17 @@ echo 🚀 烧录方法:
 echo   1. 按住 Pico 上的 BOOTSEL 按钮
 echo   2. 连接 USB 电缆到电脑
 echo   3. 将 UF2 文件复制到 RPI-RP2 驱动器
-echo      • audio_demo_cpp.uf2  - 完整功能演示
-echo      • simple_api_demo.uf2 - 简单API示例
+echo      • interactive_midi_synth.uf2 - 交互式MIDI电子合成器
 echo.
-echo 📖 程序控制 (audio_demo_cpp.uf2):
-echo   1-8键: 播放音符 ^(DO到DO5^)
-echo   a键  : 自动播放DO RE MI音阶
-echo   l键  : 循环播放音阶
-echo   +/-键: 音量控制
-echo   t键  : 切换音色 ^(钢琴/正弦波^)
-echo   m键  : 静音切换
-echo   s/p键: 停止/暂停
-echo   q键  : 退出程序
+echo 📖 程序控制 (interactive_midi_synth.uf2):
+echo   🎹 组合键控制:
+echo     [ : 激活Shift模式 ^(低音区^)
+echo     ] : 激活Alt模式 ^(高音区^)
+echo     1-7 : 播放音符 ^(DO RE MI FA SOL LA SI^)
+echo     ESC : 取消组合键状态
+echo   🎛️ 功能控制:
+echo     +/-键: 音量调节, M: 静音, W: 切换波形
+echo     O: 切换八度, D: 播放音阶, S: 停止, Q: 退出
 echo.
 echo 💡 API集成 (只需3行代码):
 echo   auto core = std::make_unique^<PicoAudioCore^>^(^);

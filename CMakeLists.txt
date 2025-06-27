@@ -64,13 +64,17 @@ endif()
 pico_sdk_init()
 
 # ==============================================================================
-# C++ Audio Framework Library (Static Library)
+# C++ Audio Framework Library (Static Library) - Simplified Build
 # ==============================================================================
 add_library(pico_audio_framework STATIC
     src/AudioAPI.cpp
     src/MusicSequencer.cpp
     src/PicoAudioCore.cpp
-    src/WAVPlayer.cpp
+    # Note: WAV player components excluded due to missing pico_fatfs dependency
+    # src/WAVPlayer.cpp
+    # src/wav_stream_player.cpp
+    # src/simple_wav_player.cpp
+    # src/MicroSD/micro_sd.cpp
 )
 
 # Include directories for the framework
@@ -83,9 +87,8 @@ target_link_libraries(pico_audio_framework PUBLIC
     pico_stdlib
     pico_audio           # Official audio base library
     pico_audio_i2s       # Official I2S library
+    pico_multicore       # Multicore support for streaming
     hardware_gpio
-    hardware_spi         # SPI for SD card
-    # TODO: Add FatFS library when available
 )
 
 # Set compile definitions
@@ -118,148 +121,35 @@ set(PICO_COPY_TO_RAM 0)
 # Manually generate UF2 file, avoiding picotool dependency
 find_program(ELF2UF2_EXECUTABLE elf2uf2 PATHS ${PICO_SDK_PATH}/build/tools/elf2uf2)
 
+# 注意：原始的C++音频框架演示程序已被移除
+# 现在主要程序是 interactive_midi_synth
+
 # ==============================================================================
-# Build C++ Audio Framework Demo (Main Program)
+# Build Interactive MIDI Synthesizer
 # ==============================================================================
-set(cpp_demo_name "audio_demo_cpp")
-add_executable(${cpp_demo_name}
-    src/main.cpp
+set(midi_synth_name "interactive_midi_synth")
+add_executable(${midi_synth_name}
+    examples/interactive_midi_synth.cpp
 )
 
 # Enable USB and UART serial output
-pico_enable_stdio_usb(${cpp_demo_name} 1)
-pico_enable_stdio_uart(${cpp_demo_name} 1)
+pico_enable_stdio_usb(${midi_synth_name} 1)
+pico_enable_stdio_uart(${midi_synth_name} 1)
 
 # Link the audio framework
-target_link_libraries(${cpp_demo_name} PRIVATE
+target_link_libraries(${midi_synth_name} PRIVATE
     pico_audio_framework
 )
 
 # Set program information
-pico_set_program_name(${cpp_demo_name} "C++ Audio Framework Demo")
-pico_set_program_version(${cpp_demo_name} "3.0")
+pico_set_program_name(${midi_synth_name} "Interactive MIDI Synthesizer")
+pico_set_program_version(${midi_synth_name} "1.0")
 
 # Generate UF2 file
 if(ELF2UF2_EXECUTABLE)
-    add_custom_command(TARGET ${cpp_demo_name} POST_BUILD
-        COMMAND ${ELF2UF2_EXECUTABLE} $<TARGET_FILE:${cpp_demo_name}> ${cpp_demo_name}.uf2
-        COMMENT "Generating UF2 file: ${cpp_demo_name}.uf2")
-else()
-    add_custom_command(TARGET ${cpp_demo_name} POST_BUILD
-        COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${cpp_demo_name}> ${cpp_demo_name}.bin
-        COMMENT "Generating BIN file: ${cpp_demo_name}.bin")
-endif()
-
-# ==============================================================================
-# Build Simple API Demo
-# ==============================================================================
-set(api_demo_name "simple_api_demo")
-add_executable(${api_demo_name}
-    examples/simple_api_demo.cpp
-)
-
-# Enable USB and UART serial output
-pico_enable_stdio_usb(${api_demo_name} 1)
-pico_enable_stdio_uart(${api_demo_name} 1)
-
-# Link the audio framework
-target_link_libraries(${api_demo_name} PRIVATE
-    pico_audio_framework
-)
-
-# Set program information
-pico_set_program_name(${api_demo_name} "Simple API Demo")
-pico_set_program_version(${api_demo_name} "1.0")
-
-# Generate UF2 file
-if(ELF2UF2_EXECUTABLE)
-    add_custom_command(TARGET ${api_demo_name} POST_BUILD
-        COMMAND ${ELF2UF2_EXECUTABLE} $<TARGET_FILE:${api_demo_name}> ${api_demo_name}.uf2
-        COMMENT "Generating UF2 file: ${api_demo_name}.uf2")
-endif()
-
-# ==============================================================================
-# Build Debug Test (Basic Diagnostics)
-# ==============================================================================
-set(debug_test_name "debug_test")
-add_executable(${debug_test_name}
-    examples/debug_test.cpp
-)
-
-# Enable USB and UART serial output
-pico_enable_stdio_usb(${debug_test_name} 1)
-pico_enable_stdio_uart(${debug_test_name} 1)
-
-# Link basic libraries only
-target_link_libraries(${debug_test_name} PRIVATE
-    pico_stdlib
-)
-
-# Set program information
-pico_set_program_name(${debug_test_name} "Debug Test")
-pico_set_program_version(${debug_test_name} "1.0")
-
-# ==============================================================================
-# Build WAV Player Demo
-# ==============================================================================
-set(wav_demo_name "wav_player_demo")
-add_executable(${wav_demo_name}
-    examples/wav_player_demo.cpp
-)
-
-# Enable USB and UART serial output
-pico_enable_stdio_usb(${wav_demo_name} 1)
-pico_enable_stdio_uart(${wav_demo_name} 1)
-
-# Link the audio framework
-target_link_libraries(${wav_demo_name} PRIVATE
-    pico_audio_framework
-)
-
-# Set program information
-pico_set_program_name(${wav_demo_name} "WAV Player Demo")
-pico_set_program_version(${wav_demo_name} "1.0")
-
-# Generate UF2 file
-if(ELF2UF2_EXECUTABLE)
-    add_custom_command(TARGET ${wav_demo_name} POST_BUILD
-        COMMAND ${ELF2UF2_EXECUTABLE} $<TARGET_FILE:${wav_demo_name}> ${wav_demo_name}.uf2
-        COMMENT "Generating UF2 file: ${wav_demo_name}.uf2")
-endif()
-
-# Generate UF2 file
-if(ELF2UF2_EXECUTABLE)
-    add_custom_command(TARGET ${debug_test_name} POST_BUILD
-        COMMAND ${ELF2UF2_EXECUTABLE} $<TARGET_FILE:${debug_test_name}> ${debug_test_name}.uf2
-        COMMENT "Generating UF2 file: ${debug_test_name}.uf2")
-endif()
-
-# ==============================================================================
-# Build Mute Test (Static Control Test)
-# ==============================================================================
-set(mute_test_name "mute_test")
-add_executable(${mute_test_name}
-    examples/mute_test.cpp
-)
-
-# Enable USB and UART serial output
-pico_enable_stdio_usb(${mute_test_name} 1)
-pico_enable_stdio_uart(${mute_test_name} 1)
-
-# Link the audio framework
-target_link_libraries(${mute_test_name} PRIVATE
-    pico_audio_framework
-)
-
-# Set program information
-pico_set_program_name(${mute_test_name} "Mute Control Test")
-pico_set_program_version(${mute_test_name} "1.0")
-
-# Generate UF2 file
-if(ELF2UF2_EXECUTABLE)
-    add_custom_command(TARGET ${mute_test_name} POST_BUILD
-        COMMAND ${ELF2UF2_EXECUTABLE} $<TARGET_FILE:${mute_test_name}> ${mute_test_name}.uf2
-        COMMENT "Generating UF2 file: ${mute_test_name}.uf2")
+    add_custom_command(TARGET ${midi_synth_name} POST_BUILD
+        COMMAND ${ELF2UF2_EXECUTABLE} $<TARGET_FILE:${midi_synth_name}> ${midi_synth_name}.uf2
+        COMMENT "Generating UF2 file: ${midi_synth_name}.uf2")
 endif()
 
 # ==============================================================================
@@ -330,15 +220,13 @@ message(STATUS "===========================================")
 message(STATUS "Using C++17 with modern OOP features")
 message(STATUS "Framework: pico_audio_framework (header-only)")
 message(STATUS "Main demo: ${cpp_demo_name}")
-message(STATUS "API demo: ${api_demo_name}")
+message(STATUS "MIDI Synth: ${midi_synth_name}")
 if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/samples/do_re_mi_demo/main.cpp)
     message(STATUS "Legacy demo: ${legacy_demo_name} (optional)")
 endif()
 message(STATUS "Build outputs:")
-message(STATUS "  - ${cpp_demo_name}.uf2")
-message(STATUS "  - ${api_demo_name}.uf2")
-message(STATUS "  - ${debug_test_name}.uf2 (调试用)")
-message(STATUS "  - ${mute_test_name}.uf2 (静音测试)")
+message(STATUS "  - ${cpp_demo_name}.uf2 (C++音频框架演示)")
+message(STATUS "  - ${midi_synth_name}.uf2 (交互式MIDI合成器)")
 if(EXISTS ${CMAKE_CURRENT_LIST_DIR}/samples/do_re_mi_demo/main.cpp)
     message(STATUS "  - ${legacy_demo_name}.uf2")
 endif()

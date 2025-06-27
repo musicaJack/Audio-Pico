@@ -1,4 +1,4 @@
-#include "MusicSequencer.h"
+#include "MusicSequencer.hpp"
 
 namespace Audio {
 

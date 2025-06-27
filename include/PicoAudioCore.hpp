@@ -1,6 +1,6 @@
 #pragma once
 
-#include "AudioCore.h"
+#include "AudioCore.hpp"
 #include "pico/audio_i2s.h"
 #include <algorithm>
 

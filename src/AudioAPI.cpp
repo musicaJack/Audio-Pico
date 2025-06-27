@@ -90,7 +90,9 @@ bool AudioAPI::playNote(float frequency, uint32_t duration, const std::string& n
     if (!checkInitialized()) return false;
 
     MusicSequence sequence;
-    sequence.emplace_back(frequency, duration, 0, 1.0f, note_name);
+    // 完全参考simple_audio_test.cpp：使用200ms暂停时间而不是0
+    uint32_t pause_time = (duration >= 800) ? 200 : (duration / 4);  // 动态计算暂停时间
+    sequence.emplace_back(frequency, duration, pause_time, 1.0f, note_name);
     
     return playSequence(sequence, false);
 }

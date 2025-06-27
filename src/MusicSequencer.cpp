@@ -12,17 +12,17 @@ MusicSequencer::MusicSequencer()
       loop_(false),
       finished_(false) {
     
-    // 创建默认的钢琴音色波形生成器
-    wave_generator_ = WaveFactory<int16_t>::create(WaveType::PIANO);
+    // 创建默认的正弦波生成器（参考simple_audio_test.cpp）
+    wave_generator_ = WaveFactory<int16_t>::create(WaveType::SINE);
     
-    // 设置默认ADSR包络参数
+    // 设置简化ADSR包络（模拟simple_audio_test.cpp的简单音频生成）
     ADSREnvelope envelope;
-    envelope.attack_samples = 44100 * 5 / 1000;   // 5ms @ 44.1kHz
-    envelope.decay_samples = 44100 * 20 / 1000;   // 20ms
-    envelope.sustain_level = 0.6f;
-    envelope.release_samples = 44100 * 30 / 1000; // 30ms
+    envelope.attack_samples = 0;          // 无攻击时间，立即达到最大音量
+    envelope.decay_samples = 0;           // 无衰减时间
+    envelope.sustain_level = 1.0f;        // 维持满音量
+    envelope.release_samples = 32000 * 10 / 1000; // 10ms快速释放 @ 32kHz
     wave_generator_->setEnvelope(envelope);
-    wave_generator_->setAmplitude(0.8f);
+    wave_generator_->setAmplitude(0.3f);  // 适中振幅，与simple_audio_test.cpp兼容
 }
 
 MusicSequencer::~MusicSequencer() = default;
@@ -102,9 +102,13 @@ void MusicSequencer::playNote(size_t index) {
 void MusicSequencer::setWaveType(WaveType wave_type) {
     if (!wave_generator_) return;
     
-    // 保存当前状态
-    ADSREnvelope current_envelope = ADSREnvelope();
-    float current_amplitude = 0.8f;
+    // 保存当前状态（简化包络设置）
+    ADSREnvelope current_envelope;
+    current_envelope.attack_samples = 0;          // 无攻击时间，立即达到最大音量
+    current_envelope.decay_samples = 0;           // 无衰减时间
+    current_envelope.sustain_level = 1.0f;        // 维持满音量
+    current_envelope.release_samples = 32000 * 10 / 1000; // 10ms快速释放 @ 32kHz
+    float current_amplitude = 0.3f;  // 适中振幅，与simple_audio_test.cpp兼容
     
     // 创建新的波形生成器
     wave_generator_ = WaveFactory<int16_t>::create(wave_type);
@@ -181,7 +185,7 @@ void MusicSequencer::updateNoteState(uint32_t sample_rate) {
             
             if (wave_generator_) {
                 wave_generator_->setFrequency(note.frequency);
-                wave_generator_->setAmplitude(0.8f * note.volume);
+                wave_generator_->setAmplitude(0.3f * note.volume);  // 适中振幅，与simple_audio_test.cpp兼容
                 wave_generator_->noteOn();
             }
         }

@@ -70,6 +70,11 @@ add_library(pico_audio_framework STATIC
     src/AudioAPI.cpp
     src/MusicSequencer.cpp
     src/PicoAudioCore.cpp
+    # ILI9488 TFT LCD Display Driver
+    src/tft-lcd/ili9488_driver.cpp
+    src/tft-lcd/ili9488_ui.cpp
+    src/tft-lcd/hal/ili9488_hal.cpp
+    src/tft-lcd/fonts/ili9488_font.cpp
     # Note: WAV player components excluded due to missing pico_fatfs dependency
     # src/WAVPlayer.cpp
     # src/wav_stream_player.cpp
@@ -80,6 +85,7 @@ add_library(pico_audio_framework STATIC
 # Include directories for the framework
 target_include_directories(pico_audio_framework PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/include
+    ${CMAKE_CURRENT_LIST_DIR}/include/tft-lcd
 )
 
 # Link required Pico libraries
@@ -89,6 +95,9 @@ target_link_libraries(pico_audio_framework PUBLIC
     pico_audio_i2s       # Official I2S library
     pico_multicore       # Multicore support for streaming
     hardware_gpio
+    hardware_spi         # SPI for ILI9488 display
+    hardware_pwm         # PWM for backlight control
+    hardware_dma         # DMA for fast display updates
 )
 
 # Set compile definitions
@@ -150,6 +159,62 @@ if(ELF2UF2_EXECUTABLE)
     add_custom_command(TARGET ${midi_synth_name} POST_BUILD
         COMMAND ${ELF2UF2_EXECUTABLE} $<TARGET_FILE:${midi_synth_name}> ${midi_synth_name}.uf2
         COMMENT "Generating UF2 file: ${midi_synth_name}.uf2")
+endif()
+
+# ==============================================================================
+# Build Hardware Debug Program
+# ==============================================================================
+set(debug_name "debug_display_audio")
+add_executable(${debug_name}
+    examples/debug_display_audio.cpp
+)
+
+# Enable USB and UART serial output
+pico_enable_stdio_usb(${debug_name} 1)
+pico_enable_stdio_uart(${debug_name} 1)
+
+# Link the audio framework
+target_link_libraries(${debug_name} PRIVATE
+    pico_audio_framework
+)
+
+# Set program information
+pico_set_program_name(${debug_name} "Hardware Debug Program")
+pico_set_program_version(${debug_name} "1.0")
+
+# Generate UF2 file
+if(ELF2UF2_EXECUTABLE)
+    add_custom_command(TARGET ${debug_name} POST_BUILD
+        COMMAND ${ELF2UF2_EXECUTABLE} $<TARGET_FILE:${debug_name}> ${debug_name}.uf2
+        COMMENT "Generating UF2 file: ${debug_name}.uf2")
+endif()
+
+# ==============================================================================
+# Build Simple Audio Test Program
+# ==============================================================================
+set(simple_audio_name "simple_audio_test")
+add_executable(${simple_audio_name}
+    examples/simple_audio_test.cpp
+)
+
+# Enable USB and UART serial output
+pico_enable_stdio_usb(${simple_audio_name} 1)
+pico_enable_stdio_uart(${simple_audio_name} 1)
+
+# Link the audio framework
+target_link_libraries(${simple_audio_name} PRIVATE
+    pico_audio_framework
+)
+
+# Set program information
+pico_set_program_name(${simple_audio_name} "Simple Audio Test")
+pico_set_program_version(${simple_audio_name} "1.0")
+
+# Generate UF2 file
+if(ELF2UF2_EXECUTABLE)
+    add_custom_command(TARGET ${simple_audio_name} POST_BUILD
+        COMMAND ${ELF2UF2_EXECUTABLE} $<TARGET_FILE:${simple_audio_name}> ${simple_audio_name}.uf2
+        COMMENT "Generating UF2 file: ${simple_audio_name}.uf2")
 endif()
 
 # ==============================================================================

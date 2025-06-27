@@ -15,10 +15,12 @@ extern "C" {
 #endif
 
 // SPI实例外部声明
-extern spi_inst_t spi0_inst;
-extern spi_inst_t spi1_inst;
-#define spi0 (&spi0_inst)
-#define spi1 (&spi1_inst)
+// 注意：避免与hardware/spi.h中的定义冲突
+// Pico SDK已经提供了spi0和spi1的定义，这里不再重复定义
+// extern spi_inst_t spi0_inst;
+// extern spi_inst_t spi1_inst;
+// #define spi0 (&spi0_inst)
+// #define spi1 (&spi1_inst)
 
 // GPIO默认LED引脚声明
 #ifndef PICO_DEFAULT_LED_PIN
@@ -46,8 +48,8 @@ extern spi_inst_t spi1_inst;
 #define AUDIO_PIN_LRCLK         28          // LRCLK - 左右声道时钟引脚
 
 // I2S 内部配置
-#define AUDIO_DMA_CHANNEL       0           // DMA通道
-#define AUDIO_PIO_SM            0           // PIO状态机
+#define AUDIO_DMA_CHANNEL       1           // DMA通道（避免与显示系统冲突）
+#define AUDIO_PIO_SM            1           // PIO状态机（避免与显示系统冲突）
 #define AUDIO_CLOCK_PIN_BASE    AUDIO_PIN_BCLK  // 时钟引脚基址
 
 // =============================================================================
@@ -69,24 +71,27 @@ extern spi_inst_t spi1_inst;
 #define SD_USE_INTERNAL_PULLUP  true        // 使用内部上拉电阻
 
 // =============================================================================
-// 状态指示和控制引脚
+// Joystick 手柄 I2C 配置
 // =============================================================================
 
-// LED 状态指示
-#define STATUS_PIN_ONBOARD_LED  PICO_DEFAULT_LED_PIN    // 板载LED (通常是GPIO25)
-#define STATUS_PIN_AUDIO_LED    25          // 音频状态指示LED
-#define STATUS_PIN_ERROR_LED    24          // 错误状态指示LED (可选)
+// I2C 接口配置
+#define JOYSTICK_I2C_INST       i2c1        // I2C接口实例
+#define JOYSTICK_I2C_ADDR       0x63        // I2C设备地址
+#define JOYSTICK_I2C_SPEED      100000      // I2C速度（100kHz）
 
-// 控制按键引脚 (可选 - 用于硬件控制)
-#define BUTTON_PIN_PLAY_PAUSE   16          // 播放/暂停按键
-#define BUTTON_PIN_VOLUME_UP    17          // 音量增加按键
-#define BUTTON_PIN_VOLUME_DOWN  18          // 音量减小按键
-#define BUTTON_PIN_MUTE_TOGGLE  19          // 静音切换按键
-#define BUTTON_PIN_WAVE_CHANGE  20          // 波形切换按键
+// I2C 信号引脚
+#define JOYSTICK_PIN_SDA        6           // I2C数据引脚
+#define JOYSTICK_PIN_SCL        7           // I2C时钟引脚
 
-// 按键配置
-#define BUTTON_DEBOUNCE_MS      50          // 按键防抖时间 (毫秒)
-#define BUTTON_LONG_PRESS_MS    1000        // 长按检测时间 (毫秒)
+// Joystick 操作参数配置
+#define JOYSTICK_THRESHOLD      1800        // 操作检测阈值
+#define JOYSTICK_LOOP_DELAY_MS  20          // 循环延迟时间（毫秒）
+
+// Joystick LED 颜色定义
+#define JOYSTICK_LED_OFF        0x000000    // 黑色（关闭）
+#define JOYSTICK_LED_RED        0xFF0000    // 红色
+#define JOYSTICK_LED_GREEN      0x00FF00    // 绿色
+#define JOYSTICK_LED_BLUE       0x0000FF    // 蓝色
 
 // =============================================================================
 // 音频处理参数配置
@@ -124,6 +129,19 @@ extern spi_inst_t spi1_inst;
 #define SPI_SD_CLK_SLOW         SD_SPI_SPEED_SLOW
 #define SPI_SD_CLK_FAST         SD_SPI_SPEED_FAST
 
+// ILI9488 兼容性定义（仅在使用时启用）
+#define PIN_DC                  ILI9488_PIN_DC
+#define PIN_RST                 ILI9488_PIN_RST
+#define PIN_CS                  ILI9488_PIN_CS
+#define PIN_SCK                 ILI9488_PIN_SCK
+#define PIN_MOSI                ILI9488_PIN_MOSI
+#define PIN_BL                  ILI9488_PIN_BL
+
+// Joystick 兼容性定义
+#define JOYSTICK_I2C_PORT       JOYSTICK_I2C_INST
+#define JOYSTICK_I2C_SDA_PIN    JOYSTICK_PIN_SDA
+#define JOYSTICK_I2C_SCL_PIN    JOYSTICK_PIN_SCL
+
 // =============================================================================
 // 硬件配置验证宏
 // =============================================================================
@@ -146,6 +164,47 @@ extern spi_inst_t spi1_inst;
     #error "I2S audio pins cannot be the same"
 #endif
 
+// 验证ILI9488引脚不冲突于音频引脚
+#if ILI9488_PIN_SCK == AUDIO_PIN_DATA || ILI9488_PIN_SCK == AUDIO_PIN_BCLK || ILI9488_PIN_SCK == AUDIO_PIN_LRCLK
+    #warning "ILI9488 SPI SCK pin conflicts with I2S audio pins"
+#endif
+
+#if ILI9488_PIN_MOSI == AUDIO_PIN_DATA || ILI9488_PIN_MOSI == AUDIO_PIN_BCLK || ILI9488_PIN_MOSI == AUDIO_PIN_LRCLK
+    #warning "ILI9488 SPI MOSI pin conflicts with I2S audio pins"
+#endif
+
+// 验证Joystick I2C引脚不冲突
+#if JOYSTICK_PIN_SDA == AUDIO_PIN_DATA || JOYSTICK_PIN_SDA == AUDIO_PIN_BCLK || JOYSTICK_PIN_SDA == AUDIO_PIN_LRCLK
+    #warning "Joystick I2C SDA pin conflicts with I2S audio pins"
+#endif
+
+#if JOYSTICK_PIN_SCL == AUDIO_PIN_DATA || JOYSTICK_PIN_SCL == AUDIO_PIN_BCLK || JOYSTICK_PIN_SCL == AUDIO_PIN_LRCLK
+    #warning "Joystick I2C SCL pin conflicts with I2S audio pins"
+#endif
+
+
+
+// =============================================================================
+// ILI9488 TFT LCD 显示屏引脚配置（预留，具体引脚根据实际硬件配置）
+// =============================================================================
+
+// 注意：以下引脚配置仅为示例，请根据实际硬件连接进行配置
+// SPI 接口配置
+#define ILI9488_SPI_INST        spi0        // SPI接口实例
+#define ILI9488_SPI_SPEED_HZ    40000000    // SPI速度（40MHz）
+
+// SPI 信号引脚（请根据实际连接修改）
+#define ILI9488_PIN_SCK         18          // SPI时钟引脚
+#define ILI9488_PIN_MOSI        19          // SPI数据输出引脚
+#define ILI9488_PIN_MISO        255         // SPI数据输入引脚（未使用，设为255）
+// 注意：ILI9488是只写显示屏，不需要MISO引脚
+
+// 控制信号引脚（请根据实际连接修改）
+#define ILI9488_PIN_CS          17          // 片选引脚
+#define ILI9488_PIN_DC          20          // 数据/命令选择引脚
+#define ILI9488_PIN_RST         15          // 复位引脚
+#define ILI9488_PIN_BL          16          // 背光控制引脚（PWM控制）
+
 // =============================================================================
 // 辅助宏定义
 // =============================================================================
@@ -161,6 +220,14 @@ extern spi_inst_t spi1_inst;
 // 获取完整的音频格式配置
 #define AUDIO_GET_FORMAT_CONFIG() \
     AUDIO_SAMPLE_RATE, AUDIO_CHANNELS, AUDIO_BIT_DEPTH, AUDIO_BUFFER_SIZE
+
+// 获取完整的ILI9488 SPI配置
+#define ILI9488_GET_SPI_CONFIG() \
+    ILI9488_SPI_INST, ILI9488_PIN_DC, ILI9488_PIN_RST, ILI9488_PIN_CS, ILI9488_PIN_SCK, ILI9488_PIN_MOSI, ILI9488_PIN_BL, ILI9488_SPI_SPEED_HZ
+
+// 获取完整的Joystick I2C配置
+#define JOYSTICK_GET_I2C_CONFIG() \
+    JOYSTICK_I2C_INST, JOYSTICK_I2C_ADDR, JOYSTICK_PIN_SDA, JOYSTICK_PIN_SCL, JOYSTICK_I2C_SPEED
 
 // =============================================================================
 // 配置打印函数声明
@@ -215,25 +282,33 @@ struct SPISDCardPins {
 };
 
 /**
- * @brief 状态引脚配置结构体
+ * @brief Joystick手柄引脚配置结构体
  */
-struct StatusPins {
-    static constexpr uint8_t ONBOARD_LED = STATUS_PIN_ONBOARD_LED;
-    static constexpr uint8_t AUDIO_LED = STATUS_PIN_AUDIO_LED;
-    static constexpr uint8_t ERROR_LED = STATUS_PIN_ERROR_LED;
+struct JoystickPins {
+    static constexpr uint8_t I2C_ADDR = JOYSTICK_I2C_ADDR;
+    static constexpr uint32_t I2C_SPEED = JOYSTICK_I2C_SPEED;
+    static constexpr uint8_t SDA_PIN = JOYSTICK_PIN_SDA;
+    static constexpr uint8_t SCL_PIN = JOYSTICK_PIN_SCL;
+    static constexpr uint16_t THRESHOLD = JOYSTICK_THRESHOLD;
+    static constexpr uint32_t LOOP_DELAY_MS = JOYSTICK_LOOP_DELAY_MS;
+    static constexpr uint32_t LED_OFF = JOYSTICK_LED_OFF;
+    static constexpr uint32_t LED_RED = JOYSTICK_LED_RED;
+    static constexpr uint32_t LED_GREEN = JOYSTICK_LED_GREEN;
+    static constexpr uint32_t LED_BLUE = JOYSTICK_LED_BLUE;
 };
 
 /**
- * @brief 按键引脚配置结构体
+ * @brief ILI9488显示屏引脚配置结构体（预留，根据实际硬件配置）
  */
-struct ButtonPins {
-    static constexpr uint8_t PLAY_PAUSE = BUTTON_PIN_PLAY_PAUSE;
-    static constexpr uint8_t VOLUME_UP = BUTTON_PIN_VOLUME_UP;
-    static constexpr uint8_t VOLUME_DOWN = BUTTON_PIN_VOLUME_DOWN;
-    static constexpr uint8_t MUTE_TOGGLE = BUTTON_PIN_MUTE_TOGGLE;
-    static constexpr uint8_t WAVE_CHANGE = BUTTON_PIN_WAVE_CHANGE;
-    static constexpr uint32_t DEBOUNCE_MS = BUTTON_DEBOUNCE_MS;
-    static constexpr uint32_t LONG_PRESS_MS = BUTTON_LONG_PRESS_MS;
+struct ILI9488Pins {
+    static spi_inst_t* get_spi_port() { return ILI9488_SPI_INST; }
+    static constexpr uint32_t SPI_SPEED_HZ = ILI9488_SPI_SPEED_HZ;
+    static constexpr uint8_t SCK_PIN = ILI9488_PIN_SCK;
+    static constexpr uint8_t MOSI_PIN = ILI9488_PIN_MOSI;
+    static constexpr uint8_t CS_PIN = ILI9488_PIN_CS;
+    static constexpr uint8_t DC_PIN = ILI9488_PIN_DC;
+    static constexpr uint8_t RST_PIN = ILI9488_PIN_RST;
+    static constexpr uint8_t BL_PIN = ILI9488_PIN_BL;
 };
 
 /**
